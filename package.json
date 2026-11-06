@@ -1,0 +1,353 @@
+{
+  "name": "agent-session-viewer",
+  "displayName": "Agent Session Viewer",
+  "description": "Browse, search and export your local Claude Code and Codex sessions: prompts, replies, tool calls, file edits and token use. Read-only. Offline.",
+  "version": "0.1.0",
+  "publisher": "zovo",
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1B1F2A",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "AI",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "claude code",
+    "claude",
+    "codex",
+    "codex cli",
+    "agent",
+    "ai agent",
+    "coding agent",
+    "session",
+    "sessions",
+    "history",
+    "chat history",
+    "transcript",
+    "conversation",
+    "viewer",
+    "browser",
+    "search",
+    "export",
+    "markdown",
+    "tool calls",
+    "token usage",
+    "cost",
+    "jsonl",
+    "resume",
+    "prompts",
+    "llm",
+    "anthropic",
+    "openai",
+    "offline",
+    "privacy",
+    "session history"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentSessionViewer",
+          "title": "Agent Sessions",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentSessionViewer": [
+        {
+          "id": "agentSessionViewer.sessions",
+          "name": "Sessions",
+          "icon": "media/activity.svg",
+          "contextualTitle": "Agent Session Viewer"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "agentSessionViewer.sessions",
+        "contents": "Reading your Claude Code and Codex session folders.\n[Open a session file](command:agentSessionViewer.openFile)\n[Change folders](command:agentSessionViewer.openSettings)"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "agentSessionViewer.session",
+        "displayName": "Agent Session Viewer",
+        "selector": [
+          {
+            "filenamePattern": "**/.claude/projects/*/*.jsonl"
+          },
+          {
+            "filenamePattern": "**/.codex/sessions/**/rollout-*.jsonl"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "agentSessionViewer.anyJsonl",
+        "displayName": "Agent Session Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.jsonl"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "agentSessionViewer.refresh",
+        "title": "Refresh",
+        "category": "Agent Sessions",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "agentSessionViewer.search",
+        "title": "Search Sessions",
+        "category": "Agent Sessions",
+        "icon": "$(search)"
+      },
+      {
+        "command": "agentSessionViewer.open",
+        "title": "Open Session",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessionViewer.openFile",
+        "title": "Open Session File…",
+        "category": "Agent Sessions",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "agentSessionViewer.copyResume",
+        "title": "Copy Resume Command",
+        "category": "Agent Sessions",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "agentSessionViewer.exportMarkdown",
+        "title": "Export to Markdown…",
+        "category": "Agent Sessions",
+        "icon": "$(markdown)"
+      },
+      {
+        "command": "agentSessionViewer.openRaw",
+        "title": "Open as Read-Only Text",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessionViewer.reveal",
+        "title": "Reveal in File Manager",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessionViewer.openSettings",
+        "title": "Settings",
+        "category": "Agent Sessions",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "agentSessionViewer.openWalkthrough",
+        "title": "Get Started",
+        "category": "Agent Sessions"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentSessionViewer.search",
+          "when": "view == agentSessionViewer.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agentSessionViewer.refresh",
+          "when": "view == agentSessionViewer.sessions",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentSessionViewer.openFile",
+          "when": "view == agentSessionViewer.sessions",
+          "group": "navigation@3"
+        },
+        {
+          "command": "agentSessionViewer.openSettings",
+          "when": "view == agentSessionViewer.sessions",
+          "group": "more@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "agentSessionViewer.copyResume",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "inline@1"
+        },
+        {
+          "command": "agentSessionViewer.copyResume",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "1_session@1"
+        },
+        {
+          "command": "agentSessionViewer.exportMarkdown",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "1_session@2"
+        },
+        {
+          "command": "agentSessionViewer.openRaw",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "2_file@1"
+        },
+        {
+          "command": "agentSessionViewer.reveal",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "2_file@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "agentSessionViewer.open",
+          "when": "false"
+        },
+        {
+          "command": "agentSessionViewer.openRaw",
+          "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
+        },
+        {
+          "command": "agentSessionViewer.reveal",
+          "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
+        },
+        {
+          "command": "agentSessionViewer.copyResume",
+          "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
+        },
+        {
+          "command": "agentSessionViewer.exportMarkdown",
+          "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Session Viewer",
+      "properties": {
+        "agentSessionViewer.claudeRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "markdownDescription": "Folders that hold Claude Code projects (each project folder holds `<session-id>.jsonl` files). Empty = `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects`."
+        },
+        "agentSessionViewer.codexRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "markdownDescription": "Folders that hold Codex `rollout-*.jsonl` files (searched up to 5 levels deep). Empty = `$CODEX_HOME/sessions`, else `~/.codex/sessions`."
+        },
+        "agentSessionViewer.maxFileSizeMB": {
+          "type": "number",
+          "default": 256,
+          "minimum": 1,
+          "scope": "machine",
+          "description": "Read at most this many MB of one session file. Larger files open with their first part and a notice."
+        },
+        "agentSessionViewer.maxSessions": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 10,
+          "scope": "machine",
+          "description": "Show and search at most this many sessions, newest first."
+        },
+        "agentSessionViewer.expandEdits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open file edit tool calls (Edit, Write, MultiEdit, apply_patch) so their diffs show at once. Other tool calls stay collapsed."
+        },
+        "agentSessionViewer.resumeWithCd": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the copied resume command with cd to the session's project folder."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "agentSessionViewer.start",
+        "title": "Get started with Agent Session Viewer",
+        "description": "Read your Claude Code and Codex sessions in VS Code. Nothing leaves your machine.",
+        "steps": [
+          {
+            "id": "open",
+            "title": "Open the Sessions view",
+            "description": "Sessions are grouped by tool and by project folder.\n[Show Sessions](command:agentSessionViewer.sessions.focus)",
+            "media": {
+              "markdown": "walkthrough/open.md"
+            },
+            "completionEvents": [
+              "onView:agentSessionViewer.sessions"
+            ]
+          },
+          {
+            "id": "read",
+            "title": "Read a session",
+            "description": "Click a session. Tool calls are collapsed, file edits show as diffs, and the header shows model, branch and tokens.",
+            "media": {
+              "image": "images/session-dark.png",
+              "altText": "A session with a header of model, branch and token totals, a collapsed thinking block and a red/green diff of an Edit tool call."
+            }
+          },
+          {
+            "id": "search",
+            "title": "Search every session",
+            "description": "Find a prompt, a command or an error message across all sessions. You can cancel a long search.\n[Search Sessions](command:agentSessionViewer.search)",
+            "media": {
+              "markdown": "walkthrough/search.md"
+            },
+            "completionEvents": [
+              "onCommand:agentSessionViewer.search"
+            ]
+          },
+          {
+            "id": "export",
+            "title": "Export or resume",
+            "description": "Export a session to Markdown (with or without tool outputs), or copy the command that resumes it in its own tool.",
+            "media": {
+              "markdown": "walkthrough/export.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "fixtures": "node scripts/make-fixtures.js",
+    "package": "npx -y @vscode/vsce@3 package --no-dependencies -o dist/"
+  },
+  "homepage": "https://github.com/theluckystrike/agent-session-viewer#readme",
+  "bugs": {
+    "url": "https://github.com/theluckystrike/agent-session-viewer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theluckystrike/agent-session-viewer"
+  }
+}
