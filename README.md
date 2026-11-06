@@ -58,6 +58,7 @@ Files under `.claude/projects` and `.codex/sessions` open in the viewer by defau
 | `agentSessionViewer.maxSessions` | `2000` | Newest sessions to list and search. |
 | `agentSessionViewer.expandEdits` | `true` | Open file edit calls so their diffs show at once. |
 | `agentSessionViewer.resumeWithCd` | `true` | Start the resume command with `cd` to the project folder. |
+| `agentSessionViewer.askForRating` | `true` | Ask one time for a Marketplace rating, after 5 sessions and 2 days. Turn it off with `false`. |
 
 ## Large files
 

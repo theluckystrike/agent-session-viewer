@@ -30,6 +30,9 @@ function claudeSession(id, recs) {
 const OLD = `export async function fetchForecast(city) {\n  const res = await fetch(url(city));\n  return res.json();\n}\n`;
 const NEW = `export async function fetchForecast(city, { retries = 3 } = {}) {\n  for (let i = 0; i <= retries; i++) {\n    const res = await fetch(url(city));\n    if (res.ok) return res.json();\n    await sleep(250 * 2 ** i);\n  }\n  throw new Error(\`forecast failed for \${city}\`);\n}\n`;
 
+// Read tool output: each line numbered like `cat -n` (6-wide number, then a tab).
+const catN = (text) => text.replace(/\n$/, '').split('\n').map((l, i) => String(i + 1).padStart(6) + '\t' + l).join('\n');
+
 const files = {};
 const CL = 'claude/projects/-tmp-demo';
 files[`${CL}/11111111-1111-4111-8111-111111111111.jsonl`] = claudeSession('11111111-1111-4111-8111-111111111111', [
@@ -45,7 +48,7 @@ files[`${CL}/22222222-2222-4222-8222-222222222222.jsonl`] = claudeSession('22222
   { t: 0, user: 'Add retry with backoff to fetchForecast and run the tests.' },
   { t: 3, msgId: 'msg_a1', asst: [{ type: 'thinking', thinking: 'The function lives in src/forecast.js. Read it first, then wrap the fetch in a loop with exponential backoff.', signature: 'sig' }] },
   { t: 4, msgId: 'msg_a1', asst: [{ type: 'tool_use', id: 'toolu_read1', name: 'Read', input: { file_path: '/tmp/demo/src/forecast.js' } }], usage: { input_tokens: 20, output_tokens: 140, cache_creation_input_tokens: 2400, cache_read_input_tokens: 12000 } },
-  { t: 5, user: [{ type: 'tool_result', tool_use_id: 'toolu_read1', content: '     1\t' + OLD.split('\n').join('\n     2\t') }] },
+  { t: 5, user: [{ type: 'tool_result', tool_use_id: 'toolu_read1', content: catN(OLD) }] },
   { t: 9, asst: [{ type: 'tool_use', id: 'toolu_task1', name: 'Task', input: { description: 'Find callers', prompt: 'List every caller of fetchForecast.', subagent_type: 'Explore' } }] },
   { t: 10, side: true, user: 'List every caller of fetchForecast.' },
   { t: 12, side: true, asst: [{ type: 'tool_use', id: 'toolu_grep1', name: 'Grep', input: { pattern: 'fetchForecast\\(', path: '/tmp/demo/src' } }] },

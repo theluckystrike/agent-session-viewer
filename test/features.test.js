@@ -78,3 +78,13 @@ test('resume commands', async () => {
   assert.strictEqual(resumeCommand({ format: 'claude', id: 'x; rm -rf ~', cwd: '/' }), '');
   assert.strictEqual(shQuote("/my dir/it's"), "'/my dir/it'\\''s'");
 });
+
+test('export file name: the simple save dialog\'s added ".md" is fixed, session names are refused', () => {
+  const { exportFileName } = require('../src/core/markdown');
+  assert.deepEqual(exportFileName('notes.md'), { name: 'notes.md' });
+  assert.deepEqual(exportFileName('notes.md.md'), { name: 'notes.md' });
+  assert.deepEqual(exportFileName('notes.MD.md.md'), { name: 'notes.MD' });
+  assert.deepEqual(exportFileName('notes'), { name: 'notes.md' });
+  assert.deepEqual(exportFileName('report.txt'), { name: 'report.txt' });
+  for (const bad of ['evil.jsonl', 'evil.jsonl.md', 'EVIL.JSONL.md.md', '.md', '']) assert.ok(exportFileName(bad).error, bad);
+});

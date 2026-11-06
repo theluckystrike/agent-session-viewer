@@ -80,4 +80,18 @@ function toMarkdown(meta, items, opts = {}) {
   return out.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
-module.exports = { toMarkdown, fence, diffText };
+/**
+ * Clean up the file name picked in the export save dialog.
+ * VS Code's simple save dialog adds the filter's ".md" to whatever was typed, so "notes.md" can come back
+ * as "notes.md.md" and "evil.jsonl" as "evil.jsonl.md". Returns { name } with one ".md" at the end,
+ * or { error } when the name is a session file name (.jsonl), with or without the added ".md".
+ */
+function exportFileName(picked) {
+  let name = String(picked || '').replace(/(\.md)+$/i, (m) => m.slice(0, 3));
+  const stem = name.replace(/\.md$/i, '');
+  if (!stem.trim() || /\.jsonl$/i.test(stem)) return { error: 'Pick a .md file. Agent Session Viewer never writes over a session file.' };
+  if (!/\.[^./\\]+$/.test(name)) name += '.md';
+  return { name };
+}
+
+module.exports = { toMarkdown, fence, diffText, exportFileName };

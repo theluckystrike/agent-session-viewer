@@ -2,7 +2,7 @@
   "name": "agent-session-viewer",
   "displayName": "Agent Session Viewer",
   "description": "Browse, search and export your local Claude Code and Codex sessions: prompts, replies, tool calls, file edits and token use. Read-only. Offline.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -285,6 +285,11 @@
           "type": "boolean",
           "default": true,
           "description": "Start the copied resume command with cd to the session's project folder."
+        },
+        "agentSessionViewer.askForRating": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask one time for a Marketplace rating after you have used Agent Session Viewer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
         }
       }
     },

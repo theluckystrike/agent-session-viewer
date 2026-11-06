@@ -9,9 +9,12 @@ const { buildHtml } = require('./html');
 const { loadSession, summarizeFile, detectFile } = require('./core/session');
 const { resolveRoots, listSessions, projectLabelFromDir } = require('./core/roots');
 const { searchSessions } = require('./core/search');
-const { toMarkdown } = require('./core/markdown');
+const { toMarkdown, exportFileName } = require('./core/markdown');
 const { resumeCommand } = require('./core/resume');
 const { validateWebviewMessage, hostMessage } = require('./core/protocol');
+const { createRatingPrompt } = require('./rate');
+
+let rating = { success() {} };
 
 const VIEW_SESSION = 'agentSessionViewer.session';
 const VIEW_ANY = 'agentSessionViewer.anyJsonl';
@@ -221,6 +224,7 @@ class SessionEditor {
       meta.fileBytes = stat.size;
       st.meta = meta;
       this.finish(st);
+      if (!st.cancelled) rating.success(); // once per tab: a reload replays from memory and does not come here
     } catch (err) {
       st.error = 'Could not read this session: ' + (err && err.message ? err.message : String(err));
       this.post(st, 'error', { message: st.error });
@@ -278,9 +282,13 @@ async function exportMarkdown(uri, st, editor) {
   catch (e) { vscode.window.showErrorMessage('Could not read the session: ' + e.message); return; }
   const base = path.basename(uri.fsPath).replace(/\.jsonl$/i, '');
   const defaultDir = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0].uri) || vscode.Uri.file(require('os').homedir());
-  const target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(defaultDir, base + '.md'), filters: { Markdown: ['md'] }, saveLabel: 'Export' });
-  if (!target) return;
-  if (/\.jsonl$/i.test(target.fsPath) || path.resolve(target.fsPath) === path.resolve(uri.fsPath)) {
+  const picked = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.joinPath(defaultDir, base + '.md'), filters: { Markdown: ['md'] }, saveLabel: 'Export' });
+  if (!picked) return;
+  // The simple save dialog appends ".md" to what was typed: fix "x.md.md" and refuse "x.jsonl.md".
+  const fixed = exportFileName(path.posix.basename(picked.path));
+  if (fixed.error) { vscode.window.showErrorMessage(fixed.error); return; }
+  const target = vscode.Uri.joinPath(picked, '..', fixed.name);
+  if (path.resolve(target.fsPath) === path.resolve(uri.fsPath)) {
     vscode.window.showErrorMessage('Pick a .md file. Agent Session Viewer never writes over a session file.');
     return;
   }
@@ -335,6 +343,7 @@ async function runSearch(tree, editor) {
 // ---------------------------------------------------------------- activate
 
 function activate(context) {
+  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.agent-session-viewer', section: 'agentSessionViewer', message: (n) => `Agent Session Viewer has opened ${n} sessions for you. A rating helps other people find it.` });
   const tree = new SessionTree();
   const view = vscode.window.createTreeView('agentSessionViewer.sessions', { treeDataProvider: tree, showCollapseAll: true });
   tree.view = view;

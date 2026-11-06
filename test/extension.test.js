@@ -146,3 +146,32 @@ test('the session-folder watchers react to new, changed and deleted session file
   for (const a of watcherArgs) assert.strictEqual(a[3], false, 'delete events are not ignored');
   for (const w of watchers) for (const k of ['onDidCreate', 'onDidChange', 'onDidDelete']) assert.strictEqual(typeof w.on[k], 'function', k);
 });
+
+test('export through the simple save dialog writes one .md and never a .jsonl name', async () => {
+  const dir = path.join(h.FIX, 'claude', 'projects', '-tmp-demo');
+  const writes = [];
+  const errors = [];
+  const saved = { save: vscode.window.showSaveDialog, warn: vscode.window.showWarningMessage, err: vscode.window.showErrorMessage, write: vscode.workspace.fs.writeFile };
+  let answer;
+  vscode.window.showSaveDialog = async () => answer;
+  vscode.window.showWarningMessage = async () => 'Export';
+  vscode.window.showErrorMessage = async (m) => { errors.push(m); };
+  vscode.workspace.fs.writeFile = async (u, b) => { writes.push([u.fsPath, b.length]); };
+  try {
+    const run = () => commands.get('agentSessionViewer.exportMarkdown')(Uri.file(h.TOOLS));
+    answer = Uri.file(path.join(dir, 'notes.md.md'));
+    await run();
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0][0], path.join(dir, 'notes.md'));
+    assert.ok(writes[0][1] > 100);
+    for (const name of ['evil.jsonl.md', 'evil.jsonl', path.basename(h.TOOLS)]) {
+      answer = Uri.file(path.join(dir, name));
+      await run();
+    }
+    assert.equal(writes.length, 1, 'no write for a .jsonl name');
+    assert.equal(errors.length, 3);
+  } finally {
+    vscode.window.showSaveDialog = saved.save; vscode.window.showWarningMessage = saved.warn;
+    vscode.window.showErrorMessage = saved.err; vscode.workspace.fs.writeFile = saved.write;
+  }
+});
