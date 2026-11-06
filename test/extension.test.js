@@ -175,3 +175,33 @@ test('export through the simple save dialog writes one .md and never a .jsonl na
     vscode.window.showErrorMessage = saved.err; vscode.workspace.fs.writeFile = saved.write;
   }
 });
+
+// ---------- support links (Sponsor, More free viewers) ----------
+test('support: package.json has the sponsor field, the two commands and the setting', () => {
+  const pkg = require('../package.json');
+  const support = require('../src/support');
+  assert.strictEqual(pkg.sponsor.url, 'https://github.com/sponsors/theluckystrike');
+  assert.strictEqual(pkg.sponsor.url, support.sponsorUrl());
+  const ids = pkg.contributes.commands.map((c) => c.command);
+  assert.ok(ids.includes('agentSessionViewer.supportDeveloper') && ids.includes('agentSessionViewer.moreViewers'));
+  const props = Object.assign({}, ...[].concat(pkg.contributes.configuration).map((c) => c.properties));
+  assert.strictEqual(props['agentSessionViewer.showSupportLinks'].default, true);
+  assert.ok(commands.has('agentSessionViewer.supportDeveloper') && commands.has('agentSessionViewer.moreViewers'));
+  assert.ok(support.otherProducts('zovo.agent-session-viewer').every((x) => x.id !== 'zovo.agent-session-viewer'));
+});
+
+test('support: the footer shows by default and agentSessionViewer.showSupportLinks=false hides it', async () => {
+  const p = providers.get('agentSessionViewer.session');
+  try {
+    for (const [value, shown] of [[undefined, true], [false, false]]) {
+      if (value === undefined) delete config.showSupportLinks; else config.showSupportLinks = value;
+      const fp = fakePanel();
+      await p.resolveCustomEditor(p.openCustomDocument(Uri.file(h.TOOLS)), fp.panel);
+      const html = fp.panel.webview.html;
+      assert.strictEqual(/id="zovo-support"/.test(html), shown, String(value));
+      assert.strictEqual(html.includes('command:agentSessionViewer.supportDeveloper'), shown);
+      assert.deepStrictEqual(fp.panel.webview.options.enableCommandUris, ['agentSessionViewer.supportDeveloper', 'agentSessionViewer.moreViewers', 'workbench.action.openSettings']);
+      assert.strictEqual((html.match(/<script/g) || []).length, 1);
+    }
+  } finally { delete config.showSupportLinks; }
+});

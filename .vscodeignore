@@ -6,3 +6,4 @@ icon.svg
 .gitignore
 node_modules/**
 **/*.map
+.github/**

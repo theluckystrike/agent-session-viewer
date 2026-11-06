@@ -13,6 +13,7 @@ const { toMarkdown, exportFileName } = require('./core/markdown');
 const { resumeCommand } = require('./core/resume');
 const { validateWebviewMessage, hostMessage } = require('./core/protocol');
 const { createRatingPrompt } = require('./rate');
+const { registerSupport, commandUris, showLinks } = require('./support');
 
 let rating = { success() {} };
 
@@ -165,12 +166,14 @@ class SessionEditor {
 
   async resolveCustomEditor(doc, panel) {
     const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
-    panel.webview.options = { enableScripts: true, enableCommandUris: false, localResourceRoots: [media] };
+    // Command links are limited to the two support commands and the settings page (footer "Hide" link).
+    panel.webview.options = { enableScripts: true, enableCommandUris: commandUris('agentSessionViewer'), localResourceRoots: [media] };
     panel.webview.html = buildHtml({
       cspSource: panel.webview.cspSource,
       scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'session.js')).toString(),
       styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'session.css')).toString(),
       title: path.basename(doc.uri.fsPath),
+      showSupportLinks: showLinks(vscode, 'agentSessionViewer'),
     });
     const st = { uri: doc.uri, panel, items: [], meta: null, format: null, loading: null, cancelled: false, error: null };
     this.panels.set(doc.uri.fsPath, st);
@@ -343,6 +346,7 @@ async function runSearch(tree, editor) {
 // ---------------------------------------------------------------- activate
 
 function activate(context) {
+  registerSupport({ vscode, context, prefix: 'agentSessionViewer', selfId: 'zovo.agent-session-viewer' });
   rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.agent-session-viewer', section: 'agentSessionViewer', message: (n) => `Agent Session Viewer has opened ${n} sessions for you. A rating helps other people find it.` });
   const tree = new SessionTree();
   const view = vscode.window.createTreeView('agentSessionViewer.sessions', { treeDataProvider: tree, showCollapseAll: true });

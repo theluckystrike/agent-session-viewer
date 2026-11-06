@@ -1,8 +1,8 @@
 {
   "name": "agent-session-viewer",
   "displayName": "Agent Session Viewer",
-  "description": "Browse, search and export your local Claude Code and Codex sessions: prompts, replies, tool calls, file edits and token use. Read-only. Offline.",
-  "version": "0.1.1",
+  "description": "Browse, search and export your local Claude Code and Codex sessions, with prompts, replies, tool calls, file edits and token use. Read-only. Offline.",
+  "version": "0.1.2",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -166,6 +166,16 @@
         "command": "agentSessionViewer.openWalkthrough",
         "title": "Get Started",
         "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessionViewer.supportDeveloper",
+        "title": "Support the developer",
+        "category": "Agent Sessions"
+      },
+      {
+        "command": "agentSessionViewer.moreViewers",
+        "title": "More free viewers",
+        "category": "Agent Sessions"
       }
     ],
     "menus": {
@@ -290,6 +300,11 @@
           "type": "boolean",
           "default": true,
           "description": "Ask one time for a Marketplace rating after you have used Agent Session Viewer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
+        },
+        "agentSessionViewer.showSupportLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the small Sponsor and More free viewers links at the end of a session view. The change shows in sessions you open next. Nothing is sent anywhere."
         }
       }
     },
@@ -354,5 +369,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/theluckystrike/agent-session-viewer"
+  },
+  "sponsor": {
+    "url": "https://github.com/sponsors/theluckystrike"
   }
 }

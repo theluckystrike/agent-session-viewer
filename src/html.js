@@ -1,5 +1,6 @@
 'use strict';
 // Webview HTML with a strict Content-Security-Policy: no remote content, one nonce'd local script.
+const { footerHtml, FOOTER_CSS } = require('./support');
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,12 +17,16 @@ function makeNonce() {
   return s;
 }
 
-/** @param {{cspSource: string, scriptUri: string, styleUri: string, title: string, nonce?: string}} o */
+/**
+ * @param {{cspSource: string, scriptUri: string, styleUri: string, title: string, nonce?: string, showSupportLinks?: boolean}} o
+ * showSupportLinks false hides the small Sponsor and More free viewers line (setting agentSessionViewer.showSupportLinks).
+ */
 function buildHtml(o) {
   const nonce = o.nonce || makeNonce();
+  const footer = footerHtml('agentSessionViewer', o.showSupportLinks !== false, '');
   const csp = [
     "default-src 'none'",
-    `style-src ${o.cspSource}`,
+    `style-src ${o.cspSource} 'nonce-${nonce}'`,
     `img-src ${o.cspSource} data:`,
     `script-src 'nonce-${nonce}'`,
     "font-src 'none'",
@@ -36,6 +41,7 @@ function buildHtml(o) {
 <meta http-equiv="Content-Security-Policy" content="${escAttr(csp)}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="${esc(o.styleUri)}">
+${footer ? `<style nonce="${nonce}">${FOOTER_CSS}\n.zovo-support{padding:12px 20px 16px}</style>` : ''}
 <title>${esc(o.title)}</title>
 </head>
 <body>
@@ -52,6 +58,7 @@ function buildHtml(o) {
 </nav>
 <main id="list" class="list" aria-live="polite"></main>
 <div id="sentinel" class="sentinel"></div>
+${footer}
 <script nonce="${nonce}" src="${esc(o.scriptUri)}"></script>
 </body>
 </html>`;
