@@ -1,6 +1,6 @@
-# Agent Session Viewer
+# Claude Code History & Codex History Viewer
 
-Read, search and export your local Claude Code and Codex sessions in VS Code, with tool calls, file edit diffs and token totals, without ever changing a session file.
+Read, search and export your local Claude Code history and Codex history in VS Code, with tool calls, file edit diffs and token totals, without ever changing a session file.
 
 ![A Claude Code session with model, branch, token and cost chips, a thinking block, a subagent call indented under its Task, and an Edit tool call shown as a red and green diff](images/session-dark.png)
 

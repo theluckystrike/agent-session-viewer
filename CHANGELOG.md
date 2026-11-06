@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 (2026-11-07)
+
+- The Marketplace name is now "Claude Code History & Codex History Viewer", so a search for Claude Code history or Codex history finds it. The extension ID, settings and commands stay the same, and the views still say Agent Session Viewer.
+
 ## 0.1.2 (2026-11-06)
 
 - A small line at the end of each session view has two links, "Sponsor" (GitHub Sponsors) and "More free viewers". The new setting `agentSessionViewer.showSupportLinks` (default `true`) hides it, and so does the "Hide" link next to them. There is no popup, and nothing is sent anywhere.
