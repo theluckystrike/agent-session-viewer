@@ -2,7 +2,7 @@
   "name": "agent-session-viewer",
   "displayName": "Claude Code History & Codex History Viewer",
   "description": "Claude Code history and Codex history viewer. Browse, search and resume your local Claude Code and Codex sessions, with subagents, tool calls, file edit diffs and token use. Free, read-only, offline.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",

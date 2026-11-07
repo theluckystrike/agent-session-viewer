@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2026-11-07)
+
+- "More free viewers" now starts with the Zovo extensions most related to this one. Picking one opens its Marketplace page, where you choose to install it.
+- The README has a "Support Zovo" section with GitHub Sponsors and the developer's GitHub profile, and "More tools by Zovo" lists related extensions.
+
 ## 0.2.0 (2026-11-07)
 
 - Resume in terminal. A new button in the session view, an icon on each session in the tree and a command open a VS Code terminal in the session's project folder and type `claude --resume <id>` or `codex resume <id>`. If the folder no longer exists, the terminal opens in the default folder and a note says so. Copy resume command is still there.
