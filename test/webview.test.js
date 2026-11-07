@@ -66,3 +66,10 @@ test('the toolbar has Resume in terminal and a find box with previous, next and 
   // find marks are built with DOM text nodes only
   assert.match(js, /createTreeWalker\(node, NodeFilter\.SHOW_TEXT\)/);
 });
+
+test('the session view says when a file has no messages and labels Resume on a Claude Code subagent as the parent session', () => {
+  const js = require('fs').readFileSync(require('path').join(__dirname, '..', 'media', 'session.js'), 'utf8');
+  assert.match(js, /This session has no messages\./);
+  assert.match(js, /Resume parent session/);
+  assert.match(js, /m\.subagent && m\.format === 'claude'/);
+});

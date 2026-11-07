@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 (2026-11-07)
+
+- Resume on a Claude Code subagent now says what it does. Claude Code cannot resume a subagent on its own, and a subagent file carries the id of the session that started it, so the button reads "Resume parent session" and the terminal is named for the parent session.
+- A session file with no messages (Claude Code saves one when a session is opened and closed before anything is sent) now shows a short note instead of an empty page.
+
 ## 0.2.1 (2026-11-07)
 
 - "More free viewers" now starts with the Zovo extensions most related to this one. Picking one opens its Marketplace page, where you choose to install it.

@@ -237,6 +237,12 @@
     if (skipped.length) n.appendChild(el('div', 'notice', 'Skipped record types: ' + skipped.map(([k, v]) => k + ' (' + v + ')').join(', ')));
     if (m.badLines) n.appendChild(el('div', 'notice', m.badLines + ' line(s) were not valid JSON and were skipped.'));
     if (m.truncated) n.appendChild(el('div', 'notice warn', 'Only the first part of this file was read (size limit). Raise "Agent Session Viewer: Max File Size MB" to read all of it.'));
+    // A Claude Code subagent file carries the session id of the session that started it, and Claude Code
+    // cannot resume a subagent on its own. Say so on the buttons instead of promising "this session".
+    const parentOnly = !!m.subagent && m.format === 'claude';
+    $('btn-term').textContent = parentOnly ? 'Resume parent session' : BTN_TERM.text;
+    $('btn-term').title = parentOnly ? 'Claude Code cannot resume a subagent on its own. This opens a terminal in the project folder and resumes the session that started it.' : BTN_TERM.title;
+    $('btn-resume').title = parentOnly ? 'Copy the shell command that resumes the session that started this subagent' : BTN_RESUME_TITLE;
   }
 
   function tryFocus() {
@@ -262,6 +268,9 @@
     list.querySelectorAll('details').forEach((d) => { d.open = open; });
   }
 
+  const BTN_TERM = { text: $('btn-term').textContent, title: $('btn-term').title };
+  const BTN_RESUME_TITLE = $('btn-resume').title;
+
   window.addEventListener('message', (ev) => {
     const m = ev.data;
     if (!m || typeof m !== 'object') return;
@@ -284,6 +293,9 @@
           if (meta.format === 'codex') list.querySelectorAll('details.thinking > summary').forEach((x) => { x.textContent = 'Reasoning'; });
         }
         if (!m.resume) { $('btn-resume').disabled = true; $('btn-term').disabled = true; }
+        if (meta && !items.length && !list.querySelector('.error-box')) {
+          list.appendChild(el('div', 'note', 'This session has no messages. Claude Code and Codex save a file like this when a session is opened and closed before anything is sent.'));
+        }
         updateStatus();
         if (focusLine) tryFocus();
         break;

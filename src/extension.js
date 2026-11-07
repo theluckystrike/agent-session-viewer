@@ -315,14 +315,16 @@ async function copyResume(meta) {
   vscode.window.showInformationMessage('Copied: ' + cmd);
 }
 
-/** Opens a terminal in the session's project folder and types the resume command. Nothing else is run. */
+/** Opens a terminal in the session's project folder and runs the resume command there. Nothing else is run.
+ * A Claude Code subagent file holds its parent's session id, so the terminal name says it resumes the parent. */
 async function resumeInTerminal(meta) {
   const cmd = resumeCommand(meta, { withCd: false });
   if (!cmd) { vscode.window.showWarningMessage('No session id found in this file, so there is no resume command.'); return null; }
   let cwd;
   if (meta.cwd) { try { if ((await fs.promises.stat(meta.cwd)).isDirectory()) cwd = meta.cwd; } catch { /* folder gone */ } }
   const label = oneLine(meta.title || meta.firstPrompt || meta.id, 32);
-  const term = vscode.window.createTerminal({ name: (meta.format === 'codex' ? 'Codex: ' : 'Claude Code: ') + label, cwd });
+  const prefix = meta.format === 'codex' ? 'Codex: ' : meta.subagent ? 'Claude Code (parent session): ' : 'Claude Code: ';
+  const term = vscode.window.createTerminal({ name: prefix + label, cwd });
   term.show();
   term.sendText(cmd, true);
   if (meta.cwd && !cwd) vscode.window.showWarningMessage(`The project folder ${meta.cwd} does not exist any more, so the terminal opened in the default folder. ${meta.format === 'codex' ? 'Codex' : 'Claude Code'} may not find the session from there.`);

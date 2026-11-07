@@ -318,3 +318,17 @@ test('support: the footer shows by default and agentSessionViewer.showSupportLin
     }
   } finally { delete config.showSupportLinks; }
 });
+
+test('Resume in terminal on a Claude Code subagent names the terminal for the parent session it resumes', async () => {
+  const terms = [];
+  const savedWarn = vscode.window.showWarningMessage;
+  vscode.window.createTerminal = (o) => { const t = { o, sent: [], show() {}, sendText(x, nl) { this.sent.push([x, nl]); } }; terms.push(t); return t; };
+  vscode.window.showWarningMessage = async () => {};
+  try {
+    const sub = path.join(path.dirname(h.TOOLS), '22222222-2222-4222-8222-222222222222', 'subagents', 'agent-a7c41d2e9b.jsonl');
+    await commands.get('agentSessionViewer.resumeInTerminal')(Uri.file(sub));
+    assert.strictEqual(terms.length, 1);
+    assert.match(terms[0].o.name, /^Claude Code \(parent session\): /);
+    assert.deepStrictEqual(terms[0].sent, [['claude --resume 22222222-2222-4222-8222-222222222222', true]]);
+  } finally { vscode.window.showWarningMessage = savedWarn; }
+});
