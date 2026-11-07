@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { buildHtml } = require('./html');
 const { loadSession, summarizeFile, detectFile } = require('./core/session');
-const { resolveRoots, listSessions, projectLabelFromDir } = require('./core/roots');
+const { resolveRoots, listSessions, projectLabelFromDir, readCodexTitles } = require('./core/roots');
 const { searchSessions } = require('./core/search');
 const { toMarkdown, exportFileName } = require('./core/markdown');
 const { resumeCommand } = require('./core/resume');
@@ -16,6 +16,13 @@ const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
 
 let rating = { success() {} };
+// Codex thread names from session_index.jsonl (id -> name). Memory only; refreshed with the tree.
+let codexTitles = null;
+async function codexTitleFor(id) {
+  if (!id) return '';
+  if (!codexTitles) { try { codexTitles = await readCodexTitles(resolveRoots(cfg()).codex); } catch { codexTitles = new Map(); } }
+  return codexTitles.get(id) || '';
+}
 
 const VIEW_SESSION = 'agentSessionViewer.session';
 const VIEW_ANY = 'agentSessionViewer.anyJsonl';
@@ -58,6 +65,7 @@ class SessionTree {
     this.view = null;
   }
   key(e) { return e.file + '|' + e.mtimeMs + '|' + e.size; }
+  isSubagent(e) { if (e.parentFile) return true; const m = this.summaryOf(e); return !!(m && m.subagent); }
   summaryOf(e) { return this.summaries.get(this.key(e)); }
 
   async refresh() {
@@ -69,6 +77,7 @@ class SessionTree {
     this.roots = roots;
     let entries = [];
     try { entries = await listSessions(roots, { max: c.maxSessions }); } catch { entries = []; }
+    try { codexTitles = await readCodexTitles(roots.codex); } catch { codexTitles = new Map(); }
     if (gen !== this.gen) return;
     this.entries = entries;
     // Pass 1: first 256 KB of each file for project, title and first prompt.
@@ -105,8 +114,10 @@ class SessionTree {
       const out = [];
       for (const [source, label] of [['claude', 'Claude Code'], ['codex', 'Codex']]) {
         const es = this.entries.filter((e) => e.source === source);
+        const subs = es.filter((e) => this.isSubagent(e)).length;
+        const main = es.length - subs;
         const it = new vscode.TreeItem(label, es.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
-        it.description = es.length ? `${es.length} session${es.length === 1 ? '' : 's'}` : 'no sessions found';
+        it.description = es.length ? `${main} session${main === 1 ? '' : 's'}` + (subs ? ` · ${subs} subagent${subs === 1 ? '' : 's'}` : '') : 'no sessions found';
         it.iconPath = new vscode.ThemeIcon(source === 'claude' ? 'sparkle' : 'terminal');
         it.contextValue = 'source';
         it.tooltip = (this.roots ? this.roots[source] : []).join('\n');
@@ -116,9 +127,12 @@ class SessionTree {
     }
     if (n.kind === 'source') {
       const groups = new Map();
+      const keyOf = new Map();
+      const keyFor = (e) => { const m = this.summaryOf(e); return (m && m.cwd) || (e.projectDir ? projectLabelFromDir(e.projectDir) : '(unknown folder)'); };
+      for (const e of n.entries) if (!e.parentFile) keyOf.set(e.file, keyFor(e));
       for (const e of n.entries) {
-        const m = this.summaryOf(e);
-        const key = (m && m.cwd) || (e.projectDir ? projectLabelFromDir(e.projectDir) : '(unknown folder)');
+        // A Claude Code subagent file goes in the same folder group as the session that started it.
+        const key = (e.parentFile && keyOf.get(e.parentFile)) || keyOf.get(e.file) || keyFor(e);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(e);
       }
@@ -132,23 +146,44 @@ class SessionTree {
         return { kind: 'project', item: it, entries: es, latest: es[0].mtimeMs };
       }).sort((a, b) => b.latest - a.latest);
     }
-    if (n.kind === 'project') return n.entries.map((e) => this.sessionNode(e));
+    if (n.kind === 'project') {
+      // Codex subagent threads sit under the session that started them when that session is in the same folder.
+      const byId = new Map();
+      const byFile = new Map();
+      for (const e of n.entries) { const m = this.summaryOf(e); if (m && m.id && !m.parentId && !e.parentFile && e.source === 'codex') byId.set(m.id, e); if (!e.parentFile) byFile.set(e.file, e); }
+      const kids = new Map();
+      const top = [];
+      for (const e of n.entries) {
+        const m = this.summaryOf(e);
+        const parent = e.parentFile ? byFile.get(e.parentFile) : (m && m.parentId ? byId.get(m.parentId) : null);
+        if (parent && parent !== e) { if (!kids.has(parent.file)) kids.set(parent.file, []); kids.get(parent.file).push(e); }
+        else top.push(e);
+      }
+      return top.map((e) => this.sessionNode(e, kids.get(e.file) || []));
+    }
+    if (n.kind === 'session' && n.children) return n.children.map((e) => this.sessionNode(e, []));
     return [];
   }
 
-  sessionNode(e) {
+  sessionNode(e, children = []) {
     const m = this.summaryOf(e);
-    const label = m ? oneLine(m.title || m.firstPrompt || path.basename(e.file), 70) : path.basename(e.file);
-    const it = new vscode.TreeItem(label || path.basename(e.file), vscode.TreeItemCollapsibleState.None);
+    const title = m ? ((e.source === 'codex' && codexTitles && codexTitles.get(m.id)) || m.title) : '';
+    let label = m ? oneLine(title || m.firstPrompt || path.basename(e.file), 70) : path.basename(e.file);
+    if (this.isSubagent(e)) {
+      const who = e.agentType || (m && m.agent) || '';
+      const what = e.agentDescription || title || (m && m.firstPrompt) || '';
+      label = oneLine('Subagent' + (who ? ' ' + who : '') + (what ? ': ' + what : ''), 90);
+    }
+    const it = new vscode.TreeItem(label || path.basename(e.file), children.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
     const turns = m ? `${m.turns}${m.partial ? '+' : ''} turn${m.turns === 1 ? '' : 's'}` : '';
-    it.description = [shortDate(e.mtimeMs), turns, sizeLabel(e.size)].filter(Boolean).join(' · ');
+    it.description = [shortDate(e.mtimeMs), turns, sizeLabel(e.size), children.length ? `${children.length} subagent${children.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
     it.tooltip = [m && m.firstPrompt ? oneLine(m.firstPrompt, 300) : '', e.file].filter(Boolean).join('\n\n');
     it.resourceUri = vscode.Uri.file(e.file);
-    it.iconPath = new vscode.ThemeIcon('comment-discussion');
+    it.iconPath = new vscode.ThemeIcon(this.isSubagent(e) ? 'symbol-namespace' : 'comment-discussion');
     it.contextValue = 'session';
     it.id = e.file;
     it.command = { command: 'agentSessionViewer.open', title: 'Open Session', arguments: [vscode.Uri.file(e.file)] };
-    return { kind: 'session', item: it, entry: e };
+    return { kind: 'session', item: it, entry: e, children };
   }
 }
 
@@ -185,6 +220,7 @@ class SessionEditor {
       if (!m) return;
       if (m.type === 'ready') this.send(st);
       else if (m.type === 'copyResume') copyResume(st.meta);
+      else if (m.type === 'resumeTerminal') resumeInTerminal(st.meta);
       else if (m.type === 'export') exportMarkdown(st.uri, st);
       else if (m.type === 'openRaw') openRaw(st.uri);
       else if (m.type === 'copy') vscode.env.clipboard.writeText(m.text);
@@ -225,6 +261,7 @@ class SessionEditor {
         onItems: (batch) => { st.items.push(...batch); this.post(st, 'items', { items: batch }); },
       });
       meta.fileBytes = stat.size;
+      if (format === 'codex') { const name = await codexTitleFor(meta.id); if (name) meta.title = name; }
       st.meta = meta;
       this.finish(st);
       if (!st.cancelled) rating.success(); // once per tab: a reload replays from memory and does not come here
@@ -237,16 +274,19 @@ class SessionEditor {
   finish(st) {
     const c = cfg();
     this.post(st, 'done', { meta: st.meta, resume: resumeCommand(st.meta, { withCd: c.resumeWithCd }) });
-    const line = this.pendingFocus.get(st.uri.fsPath);
-    if (line) { this.pendingFocus.delete(st.uri.fsPath); this.post(st, 'focus', { line }); }
+    const f = this.pendingFocus.get(st.uri.fsPath);
+    if (f) { this.pendingFocus.delete(st.uri.fsPath); this.post(st, 'focus', f); }
   }
 
-  focus(uri, line) {
+  /** Jumps to a line; `query` (from Search Sessions) is put in the session's find box and its matches are counted. */
+  focus(uri, line, query) {
     const st = this.panels.get(uri.fsPath);
+    const f = { line };
+    if (typeof query === 'string' && query.trim()) f.query = query.slice(0, 200);
     // A hidden panel has no live webview (retainContextWhenHidden is off): a message posted now is lost.
     // Keep the line and send it after the webview reloads and the session is replayed (see finish).
-    if (st && st.meta && st.panel.visible) this.post(st, 'focus', { line });
-    else this.pendingFocus.set(uri.fsPath, line);
+    if (st && st.meta && st.panel.visible) this.post(st, 'focus', f);
+    else this.pendingFocus.set(uri.fsPath, f);
   }
 }
 
@@ -273,6 +313,20 @@ async function copyResume(meta) {
   if (!cmd) { vscode.window.showWarningMessage('No session id found in this file, so there is no resume command.'); return; }
   await vscode.env.clipboard.writeText(cmd);
   vscode.window.showInformationMessage('Copied: ' + cmd);
+}
+
+/** Opens a terminal in the session's project folder and types the resume command. Nothing else is run. */
+async function resumeInTerminal(meta) {
+  const cmd = resumeCommand(meta, { withCd: false });
+  if (!cmd) { vscode.window.showWarningMessage('No session id found in this file, so there is no resume command.'); return null; }
+  let cwd;
+  if (meta.cwd) { try { if ((await fs.promises.stat(meta.cwd)).isDirectory()) cwd = meta.cwd; } catch { /* folder gone */ } }
+  const label = oneLine(meta.title || meta.firstPrompt || meta.id, 32);
+  const term = vscode.window.createTerminal({ name: (meta.format === 'codex' ? 'Codex: ' : 'Claude Code: ') + label, cwd });
+  term.show();
+  term.sendText(cmd, true);
+  if (meta.cwd && !cwd) vscode.window.showWarningMessage(`The project folder ${meta.cwd} does not exist any more, so the terminal opened in the default folder. ${meta.format === 'codex' ? 'Codex' : 'Claude Code'} may not find the session from there.`);
+  return { cmd, cwd };
 }
 
 async function exportMarkdown(uri, st, editor) {
@@ -339,7 +393,7 @@ async function runSearch(tree, editor) {
   const sel = await vscode.window.showQuickPick(picks, { matchOnDescription: true, matchOnDetail: true, placeHolder: `${hits.length} result${hits.length === 1 ? '' : 's'}${hits.length >= 300 ? ' (first 300)' : ''}` });
   if (!sel) return;
   const uri = vscode.Uri.file(sel.hit.file);
-  editor.focus(uri, sel.hit.line);
+  editor.focus(uri, sel.hit.line, query.trim());
   await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_SESSION);
 }
 
@@ -374,6 +428,15 @@ function activate(context) {
         const st = editor.panels.get(uri.fsPath);
         const meta = st && st.meta ? st.meta : await summarizeFile(uri.fsPath, { maxBytes: 1024 * 1024 });
         await copyResume(meta);
+      } catch (e) { vscode.window.showErrorMessage(e.message); }
+    }),
+    vscode.commands.registerCommand('agentSessionViewer.resumeInTerminal', async (arg) => {
+      const uri = uriFrom(arg, editor);
+      if (!uri) return;
+      try {
+        const st = editor.panels.get(uri.fsPath);
+        const meta = st && st.meta ? st.meta : await summarizeFile(uri.fsPath, { maxBytes: 1024 * 1024 });
+        return await resumeInTerminal(meta);
       } catch (e) { vscode.window.showErrorMessage(e.message); }
     }),
     vscode.commands.registerCommand('agentSessionViewer.exportMarkdown', (arg) => {

@@ -106,6 +106,8 @@ function createCodexParser() {
       case 'agent_message': {
         const text = textOf(p.content);
         if (text.trim()) items.push({ k: 'note', label: [p.author, p.recipient].filter((x) => typeof x === 'string' && x).join(' → ') || 'agent message', text: clip(text, 20000), line });
+        // A Codex subagent thread gets its task as an agent message, not as a user prompt.
+        if (text.trim() && meta.subagent && !meta.firstPrompt) meta.firstPrompt = text.trim().slice(0, 300);
         return;
       }
       case 'additional_tools':
@@ -134,8 +136,15 @@ function createCodexParser() {
       if (typeof p.cwd === 'string' && !meta.cwd) meta.cwd = p.cwd;
       if (typeof p.cli_version === 'string') meta.version = p.cli_version;
       if (p.git && typeof p.git.branch === 'string') meta.branch = p.git.branch;
-      if (p.source && typeof p.source === 'object' && p.source.subagent) meta.subagent = true;
-      if (typeof p.agent_nickname === 'string' && p.agent_nickname) meta.agent = p.agent_nickname;
+      if (p.source && typeof p.source === 'object' && p.source.subagent) {
+        meta.subagent = true;
+        const spawn = p.source.subagent && typeof p.source.subagent === 'object' ? p.source.subagent.thread_spawn : null;
+        const parent = (spawn && spawn.parent_thread_id) || p.parent_thread_id;
+        if (typeof parent === 'string' && parent) meta.parentId = parent;
+        const ap = (spawn && spawn.agent_path) || p.agent_path;
+        if (typeof ap === 'string' && ap) meta.agentPath = ap.slice(0, 200);
+      }
+      if (typeof p.agent_nickname === 'string' && p.agent_nickname) meta.agent = p.agent_nickname.slice(0, 80);
       touchTime(meta, p.timestamp);
       return items;
     }

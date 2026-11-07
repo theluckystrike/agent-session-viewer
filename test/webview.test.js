@@ -8,6 +8,7 @@ const { buildHtml } = require('../src/html');
 
 test('webview messages: valid ones pass, others are dropped', () => {
   assert.deepStrictEqual(validateWebviewMessage({ type: 'ready', extra: 1 }), { type: 'ready' });
+  assert.deepStrictEqual(validateWebviewMessage({ type: 'resumeTerminal', cmd: 'rm -rf /' }), { type: 'resumeTerminal' }, 'the webview cannot pass its own command');
   assert.deepStrictEqual(validateWebviewMessage({ type: 'export' }), { type: 'export', stripToolOutputs: false });
   assert.deepStrictEqual(validateWebviewMessage({ type: 'export', stripToolOutputs: true }), { type: 'export', stripToolOutputs: true });
   assert.strictEqual(validateWebviewMessage({ type: 'export', stripToolOutputs: 'yes' }), null);
@@ -55,4 +56,13 @@ test('read-only: no source file calls a file write, move or delete API', () => {
   }
   const lines = fs.readFileSync(path.join(dir, 'core', 'lines.js'), 'utf8');
   assert.match(lines, /flags: 'r'/);
+});
+
+test('the toolbar has Resume in terminal and a find box with previous, next and a live count', () => {
+  const html = buildHtml({ cspSource: 'vscode-resource:', scriptUri: 's.js', styleUri: 's.css', title: 't', nonce: 'N0NCE' });
+  for (const id of ['btn-term', 'btn-resume', 'find', 'find-prev', 'find-next', 'find-count']) assert.match(html, new RegExp('id="' + id + '"'), id);
+  assert.match(html, /id="find-count"[^>]*aria-live="polite"/);
+  const js = fs.readFileSync(path.join(__dirname, '..', 'media', 'session.js'), 'utf8');
+  // find marks are built with DOM text nodes only
+  assert.match(js, /createTreeWalker\(node, NodeFilter\.SHOW_TEXT\)/);
 });

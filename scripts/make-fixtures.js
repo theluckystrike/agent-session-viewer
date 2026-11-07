@@ -76,6 +76,21 @@ files[`${CL}/33333333-3333-4333-8333-333333333333.jsonl`] = claudeSession('33333
   { t: 9, user: [{ type: 'tool_result', tool_use_id: 'toolu_me1', content: 'Applied 1 edit.', is_error: false }] },
 ]);
 
+// Claude Code 2026 subagent file: <session>/subagents/agent-<id>.jsonl, every record isSidechain with an agentId,
+// plus agent-<id>.meta.json. The parent session id stays in sessionId.
+{
+  const SID = '22222222-2222-4222-8222-222222222222';
+  let parent = null;
+  const rec = (t, type, message) => { const u = uuid(); const r = { parentUuid: parent, isSidechain: true, agentId: 'a7c41d2e9b', userType: 'external', cwd: CWD, sessionId: SID, version: '2.1.30', gitBranch: 'feat/retry', type, message, uuid: u, timestamp: ts(t) }; parent = u; return line(r); };
+  files[`${CL}/${SID}/subagents/agent-a7c41d2e9b.jsonl`] = [
+    rec(40, 'user', { role: 'user', content: 'Check that every caller of fetchForecast handles the new error.' }),
+    rec(42, 'assistant', { id: 'msg_sub1', role: 'assistant', model: 'claude-haiku-4-5', content: [{ type: 'tool_use', id: 'toolu_sub_grep', name: 'Grep', input: { pattern: 'fetchForecast\\(', path: '/tmp/demo/src', output_mode: 'content' } }], usage: { input_tokens: 9, output_tokens: 40, cache_creation_input_tokens: 0, cache_read_input_tokens: 3000 } }),
+    rec(43, 'user', { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_sub_grep', content: 'src/cli.js:14:  const f = await fetchForecast(city);\nsrc/server.js:31:    res.json(await fetchForecast(req.query.city));' }] }),
+    rec(45, 'assistant', { id: 'msg_sub2', role: 'assistant', model: 'claude-haiku-4-5', content: [{ type: 'text', text: 'src/server.js:31 has no try/catch, so a failed forecast becomes an unhandled rejection. src/cli.js:14 is inside main(), which prints the error.' }], usage: { input_tokens: 9, output_tokens: 52, cache_creation_input_tokens: 0, cache_read_input_tokens: 3100 } }),
+  ].join('\n') + '\n';
+  files[`${CL}/${SID}/subagents/agent-a7c41d2e9b.meta.json`] = JSON.stringify({ agentType: 'Explore', isBuiltIn: true, description: 'Check error handling of callers', toolUseId: 'toolu_task1', spawnDepth: 1, finished: true }) + '\n';
+}
+
 // Codex
 const CX_ID = '0199aa00-1111-7222-8333-444455556666';
 const cx = [];
@@ -98,6 +113,28 @@ c(15, 'event_msg', { type: 'agent_message', message: 'Renamed the flag...' });
 c(16, 'event_msg', { type: 'token_count', info: { total_token_usage: { input_tokens: 15800, cached_input_tokens: 11200, output_tokens: 1430, reasoning_output_tokens: 512, total_tokens: 17230 } } });
 c(16, 'some_future_type', { anything: true });
 files[`codex/sessions/2026/11/06/rollout-2026-11-06T09-12-00-${CX_ID}.jsonl`] = cx.join('\n') + '\n';
+
+// Codex subagent thread (2026 multi-agent format): its task comes as an agent_message, and session_meta names the parent thread.
+const SUB_ID = '0199aa00-2222-7222-8333-444455556666';
+const sx = [];
+const sc = (s, type, payload) => sx.push(line({ timestamp: ts(s), type, payload }));
+sc(20, 'session_meta', { id: SUB_ID, parent_thread_id: CX_ID, timestamp: ts(20), cwd: CWD, originator: 'codex-tui', cli_version: '0.60.0', agent_nickname: 'Hume', agent_path: '/root/check_docs', source: { subagent: { thread_spawn: { parent_thread_id: CX_ID, depth: 1, agent_path: '/root/check_docs', agent_nickname: 'Hume', agent_role: null } } } });
+sc(20, 'response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions for /tmp/demo\n\nUse npm.' }] });
+sc(21, 'turn_context', { cwd: CWD, model: 'gpt-5.1-codex', effort: 'low' });
+sc(21, 'inter_agent_communication_metadata', { author: '/root', recipient: '/root/check_docs' });
+sc(21, 'response_item', { type: 'agent_message', id: 'am1', author: '/root', recipient: '/root/check_docs', content: [{ type: 'input_text', text: 'Check that docs/flags.md lists every flag in src/cli.js.' }] });
+sc(22, 'response_item', { type: 'function_call', name: 'shell', arguments: JSON.stringify({ command: ['bash', '-lc', 'cat docs/flags.md'] }), call_id: 'call_sub1' });
+sc(23, 'response_item', { type: 'function_call_output', call_id: 'call_sub1', output: JSON.stringify({ output: '# Flags\n\n- `--place` (alias `--city`)\n', metadata: { exit_code: 0 } }) });
+sc(24, 'response_item', { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '--units is missing from docs/flags.md.' }] });
+sc(24, 'event_msg', { type: 'token_count', info: { total_token_usage: { input_tokens: 3000, cached_input_tokens: 1000, output_tokens: 90, reasoning_output_tokens: 20, total_tokens: 3090 } } });
+files[`codex/sessions/2026/11/06/rollout-2026-11-06T09-12-20-${SUB_ID}.jsonl`] = sx.join('\n') + '\n';
+
+// Codex thread names (session_index.jsonl next to sessions/): the last line for an id wins.
+files['codex/session_index.jsonl'] = [
+  { id: CX_ID, thread_name: 'Rename city flag', updated_at: ts(1) },
+  { id: CX_ID, thread_name: 'Flag rename: --city to --place', updated_at: ts(30) },
+  { id: 'not-a-session-here', thread_name: 'Other thread', updated_at: ts(2) },
+].map(line).join('\n') + '\n';
 
 // A JSONL file that is not a session (custom editor must refuse it politely).
 files['other/data.jsonl'] = [{ id: 1, name: 'a' }, { id: 2, name: 'b' }].map(line).join('\n') + '\n';

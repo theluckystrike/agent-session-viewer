@@ -1,8 +1,8 @@
 {
   "name": "agent-session-viewer",
   "displayName": "Claude Code History & Codex History Viewer",
-  "description": "Claude Code history and Codex history viewer. Browse, search and export your local Claude Code and Codex sessions, with prompts, replies, tool calls, file edits and token use. Read-only. Offline.",
-  "version": "0.1.5",
+  "description": "Claude Code history and Codex history viewer. Browse, search and resume your local Claude Code and Codex sessions, with subagents, tool calls, file edit diffs and token use. Free, read-only, offline.",
+  "version": "0.2.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -20,36 +20,36 @@
     "Other"
   ],
   "keywords": [
-    "claude code session viewer",
-    "codex history",
     "claude code history",
-    "claude code chat history",
-    "claude sessions",
-    "claude code transcript",
+    "codex history",
     "claude history",
+    "claude sessions",
+    "chat history",
+    "conversation history",
+    "claude code resume",
+    "jsonl transcript",
+    "claude code session viewer",
+    "claude code chat history",
     "claude code sessions",
     "codex sessions",
-    "agent sessions",
+    "session history",
     "session viewer",
     "claude code",
     "claude",
     "codex",
     "codex cli",
-    "ai agent",
-    "coding agent",
-    "session",
-    "sessions",
-    "history",
-    "chat history",
+    "subagents",
+    "resume",
     "transcript",
-    "search",
+    "history",
+    "sessions",
+    "conversation",
     "tool calls",
     "token usage",
     "jsonl",
-    "prompts",
-    "offline",
-    "privacy",
-    "session history"
+    "export",
+    "agent sessions",
+    "claude transcript"
   ],
   "main": "./src/extension.js",
   "activationEvents": [],
@@ -135,6 +135,12 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "agentSessionViewer.resumeInTerminal",
+        "title": "Resume in Terminal",
+        "category": "Agent Sessions",
+        "icon": "$(terminal)"
+      },
+      {
         "command": "agentSessionViewer.copyResume",
         "title": "Copy Resume Command",
         "category": "Agent Sessions",
@@ -203,19 +209,29 @@
       ],
       "view/item/context": [
         {
-          "command": "agentSessionViewer.copyResume",
+          "command": "agentSessionViewer.resumeInTerminal",
           "when": "view == agentSessionViewer.sessions && viewItem == session",
           "group": "inline@1"
         },
         {
-          "command": "agentSessionViewer.copyResume",
+          "command": "agentSessionViewer.resumeInTerminal",
           "when": "view == agentSessionViewer.sessions && viewItem == session",
           "group": "1_session@1"
         },
         {
-          "command": "agentSessionViewer.exportMarkdown",
+          "command": "agentSessionViewer.copyResume",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "inline@2"
+        },
+        {
+          "command": "agentSessionViewer.copyResume",
           "when": "view == agentSessionViewer.sessions && viewItem == session",
           "group": "1_session@2"
+        },
+        {
+          "command": "agentSessionViewer.exportMarkdown",
+          "when": "view == agentSessionViewer.sessions && viewItem == session",
+          "group": "1_session@3"
         },
         {
           "command": "agentSessionViewer.openRaw",
@@ -247,6 +263,10 @@
         },
         {
           "command": "agentSessionViewer.exportMarkdown",
+          "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
+        },
+        {
+          "command": "agentSessionViewer.resumeInTerminal",
           "when": "activeCustomEditorId == agentSessionViewer.session || activeCustomEditorId == agentSessionViewer.anyJsonl"
         }
       ]
@@ -304,7 +324,7 @@
         "agentSessionViewer.showSupportLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Show the small Sponsor and More free viewers links at the end of a session view. The change shows in sessions you open next. Nothing is sent anywhere."
+          "description": "Show the small Sponsor, More free viewers and Rate links at the end of a session view. The change shows in sessions you open next. Nothing is sent anywhere."
         }
       }
     },
@@ -328,16 +348,16 @@
           {
             "id": "read",
             "title": "Read a session",
-            "description": "Click a session. Tool calls are collapsed, file edits show as diffs, and the header shows model, branch and tokens.",
+            "description": "Click a session. Tool calls are collapsed, file edits show as diffs, subagents sit under their session, and the header shows model, branch and tokens.",
             "media": {
-              "image": "images/session-dark.png",
-              "altText": "A session with a header of model, branch and token totals, a collapsed thinking block and a red/green diff of an Edit tool call."
+              "image": "images/overview-dark.png",
+              "altText": "The Sessions view with a Claude Code session and its subagent, and the session open with model, branch, token and cost chips and an Edit call shown as a diff."
             }
           },
           {
             "id": "search",
             "title": "Search every session",
-            "description": "Find a prompt, a command or an error message across all sessions. You can cancel a long search.\n[Search Sessions](command:agentSessionViewer.search)",
+            "description": "Find a prompt, a command or an error message across all sessions. The session opens at the match, with your words in its find box and every match counted. You can cancel a long search.\n[Search Sessions](command:agentSessionViewer.search)",
             "media": {
               "markdown": "walkthrough/search.md"
             },
@@ -347,8 +367,8 @@
           },
           {
             "id": "export",
-            "title": "Export or resume",
-            "description": "Export a session to Markdown (with or without tool outputs), or copy the command that resumes it in its own tool.",
+            "title": "Resume or export",
+            "description": "Resume in terminal opens a terminal in the session's project folder and runs its resume command. You can also copy that command, or export the session to Markdown (with or without tool outputs).\n[Show Sessions](command:agentSessionViewer.sessions.focus)",
             "media": {
               "markdown": "walkthrough/export.md"
             }

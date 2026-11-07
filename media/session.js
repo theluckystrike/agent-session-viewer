@@ -12,6 +12,7 @@
   let meta = null;
   let expandEdits = true;
   let focusLine = 0;
+  let pendingQuery = '';
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -170,7 +171,7 @@
     const end = Math.min(items.length, rendered + n);
     for (; rendered < end; rendered++) {
       const e = itemEl(items[rendered]);
-      if (e) frag.appendChild(e);
+      if (e) { e.dataset.idx = String(rendered); frag.appendChild(e); }
     }
     list.appendChild(frag);
     updateStatus();
@@ -215,6 +216,7 @@
     $('title').textContent = m.title || (m.firstPrompt || '').split('\n')[0].slice(0, 120) || m.id || 'Session';
     $('chips').textContent = '';
     chip('Tool', m.format === 'codex' ? 'Codex' : 'Claude Code', 'tool-' + m.format);
+    if (m.subagent) chip('Subagent', m.agent || m.agentId || 'yes');
     chip('Model', (m.models || []).join(', '));
     chip('Project', m.cwd);
     chip('Branch', m.branch);
@@ -248,6 +250,12 @@
     if (node.tagName === 'DETAILS') node.open = true;
     node.classList.add('hit');
     node.scrollIntoView({ block: 'center' });
+    if (pendingQuery) {
+      // Carry the cross-session search into this session: count every match and mark the one we jumped to.
+      const q = pendingQuery; pendingQuery = '';
+      runFind(q, idx);
+      if (find.cur >= 0) { find.cur--; showHit(1); }
+    }
   }
 
   function setOpen(open) {
@@ -260,9 +268,11 @@
     switch (m.type) {
       case 'init':
         items.length = 0; tools.clear(); toolEls.clear(); rendered = 0; list.textContent = ''; meta = null;
+        find.q = ''; find.hits = []; find.cur = -1; updateFindCount();
         expandEdits = m.expandEdits !== false;
         if (m.fileName) $('title').textContent = m.fileName;
         $('btn-resume').disabled = false;
+        $('btn-term').disabled = false;
         break;
       case 'items':
         if (Array.isArray(m.items)) addItems(m.items);
@@ -273,12 +283,13 @@
           renderHeader(meta);
           if (meta.format === 'codex') list.querySelectorAll('details.thinking > summary').forEach((x) => { x.textContent = 'Reasoning'; });
         }
-        if (!m.resume) $('btn-resume').disabled = true;
+        if (!m.resume) { $('btn-resume').disabled = true; $('btn-term').disabled = true; }
         updateStatus();
         if (focusLine) tryFocus();
         break;
       case 'focus':
         focusLine = Number(m.line) || 0;
+        if (typeof m.query === 'string' && m.query.trim()) { $('find').value = m.query; pendingQuery = m.query; }
         if (focusLine) tryFocus();
         break;
       case 'error': {
@@ -292,12 +303,84 @@
   });
 
   $('btn-resume').addEventListener('click', () => vscode.postMessage({ type: 'copyResume' }));
+  $('btn-term').addEventListener('click', () => vscode.postMessage({ type: 'resumeTerminal' }));
   $('btn-export').addEventListener('click', () => vscode.postMessage({ type: 'export' }));
   $('btn-raw').addEventListener('click', () => vscode.postMessage({ type: 'openRaw' }));
   $('btn-expand').addEventListener('click', () => setOpen(true));
   $('btn-collapse').addEventListener('click', () => setOpen(false));
   $('opt-tools').addEventListener('change', (e) => document.body.classList.toggle('hide-tools', e.target.checked));
   $('opt-thinking').addEventListener('change', (e) => document.body.classList.toggle('hide-thinking', e.target.checked));
+
+
+  // ---------------------------------------------------------------- find in this session
+  // Searches every loaded item, including collapsed tool inputs, outputs and diffs, not only what is on screen.
+  const find = { q: '', hits: [], cur: -1 };
+  function itemHaystack(it) {
+    const parts = [it.text, it.name, it.summary, it.input, it.label];
+    if (it.result) parts.push(it.result.text);
+    if (it.diff) for (const f of it.diff) { parts.push(f.file); for (const l of f.lines) parts.push(l.s); }
+    return parts.filter((x) => typeof x === 'string' && x).join('\n').toLowerCase();
+  }
+  function clearMarks() {
+    list.querySelectorAll('mark.fm').forEach((m) => { const t = document.createTextNode(m.textContent); m.replaceWith(t); t.parentNode && t.parentNode.normalize(); });
+  }
+  function markIn(node, q) {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    const texts = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) if (n.nodeValue.toLowerCase().includes(q)) texts.push(n);
+    let first = null;
+    for (const t of texts) {
+      let cur = t;
+      for (let i = cur.nodeValue.toLowerCase().indexOf(q); i !== -1; i = cur.nodeValue.toLowerCase().indexOf(q)) {
+        const mid = cur.splitText(i);
+        cur = mid.splitText(q.length);
+        const m = el('mark', 'fm', mid.nodeValue);
+        mid.replaceWith(m);
+        if (!first) first = m;
+      }
+    }
+    return first;
+  }
+  function runFind(q, keepIdx) {
+    find.q = String(q || '').trim().toLowerCase();
+    find.hits = [];
+    if (find.q) for (let i = 0; i < items.length; i++) if (itemHaystack(items[i]).includes(find.q)) find.hits.push(i);
+    find.cur = -1;
+    if (typeof keepIdx === 'number') find.cur = find.hits.findIndex((i) => i >= keepIdx);
+    clearMarks();
+    updateFindCount();
+  }
+  function updateFindCount() {
+    const c = $('find-count');
+    if (!find.q) { c.textContent = ''; return; }
+    c.textContent = find.hits.length ? (find.cur >= 0 ? (find.cur + 1) + ' of ' + find.hits.length : find.hits.length + ' found') : 'No results';
+  }
+  function showHit(step) {
+    if (!find.hits.length) { updateFindCount(); return; }
+    find.cur = find.cur < 0 ? (step < 0 ? find.hits.length - 1 : 0) : (find.cur + step + find.hits.length) % find.hits.length;
+    const idx = find.hits[find.cur];
+    if (idx >= rendered) renderMore(idx - rendered + 50);
+    const node = list.querySelector('[data-idx="' + idx + '"]');
+    clearMarks();
+    updateFindCount();
+    if (!node) return;
+    const it = items[idx];
+    if ((it.k === 'tool' || it.k === 'result') && document.body.classList.contains('hide-tools')) { $('opt-tools').checked = false; document.body.classList.remove('hide-tools'); }
+    if (it.k === 'thinking' && document.body.classList.contains('hide-thinking')) { $('opt-thinking').checked = false; document.body.classList.remove('hide-thinking'); }
+    if (node.tagName === 'DETAILS') node.open = true;
+    node.querySelectorAll('details').forEach((d) => { if (d.textContent.toLowerCase().includes(find.q)) d.open = true; });
+    const m = markIn(node, find.q);
+    list.querySelectorAll('mark.fm').forEach((x) => { if (x === m) x.classList.add('cur'); });
+    (m || node).scrollIntoView({ block: 'center' });
+  }
+  let findTimer = null;
+  $('find').addEventListener('input', (e) => { clearTimeout(findTimer); findTimer = setTimeout(() => { runFind(e.target.value); if (find.hits.length) showHit(1); }, 180); });
+  $('find').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(findTimer); if (find.q !== e.target.value.trim().toLowerCase()) runFind(e.target.value); showHit(e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape') { e.target.value = ''; runFind(''); }
+  });
+  $('find-next').addEventListener('click', () => showHit(1));
+  $('find-prev').addEventListener('click', () => showHit(-1));
 
   const io = new IntersectionObserver((entries) => {
     if (entries.some((x) => x.isIntersecting) && rendered < items.length) renderMore(PAGE);

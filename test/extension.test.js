@@ -76,14 +76,116 @@ test('tree groups sessions by tool and project', async () => {
   const tree = new ext.SessionTree();
   await tree.refresh();
   const roots = tree.getChildren();
-  assert.deepStrictEqual(roots.map((r) => [r.item.label, r.item.description]), [['Claude Code', '3 sessions'], ['Codex', '1 session']]);
+  assert.deepStrictEqual(roots.map((r) => [r.item.label, r.item.description]), [['Claude Code', '3 sessions · 1 subagent'], ['Codex', '1 session · 1 subagent']]);
   const projects = tree.getChildren(roots[0]);
   assert.deepStrictEqual(projects.map((p) => p.item.label), ['demo']);
   const sessions = tree.getChildren(projects[0]);
-  assert.strictEqual(sessions.length, 3);
+  assert.strictEqual(sessions.length, 3, 'the subagent file is not a top-level session');
   const qa = sessions.find((s) => s.item.label === 'Explain the forecast cache');
   assert.ok(qa, 'title from summary record');
   assert.match(qa.item.description, /2 turns/);
+});
+
+test('a Codex subagent thread sits under the session that started it, with its nickname and task', async () => {
+  const tree = new ext.SessionTree();
+  await tree.refresh();
+  const codex = tree.getChildren()[1];
+  const [project] = tree.getChildren(codex);
+  const top = tree.getChildren(project);
+  assert.strictEqual(top.length, 1, 'only the main thread at the top');
+  assert.strictEqual(top[0].item.label, 'Flag rename: --city to --place', 'thread name from session_index.jsonl, last line wins');
+  assert.strictEqual(top[0].item.collapsibleState, 1, 'parent can be expanded');
+  assert.match(top[0].item.description, /1 subagent/);
+  const kids = tree.getChildren(top[0]);
+  assert.strictEqual(kids.length, 1);
+  assert.strictEqual(kids[0].item.label, 'Subagent Hume: Check that docs/flags.md lists every flag in src/cli.js.');
+  assert.strictEqual(kids[0].item.contextValue, 'session');
+  assert.deepStrictEqual(tree.getChildren(kids[0]), []);
+});
+
+test('a Claude Code subagent file sits under its session, named from its .meta.json', async () => {
+  const tree = new ext.SessionTree();
+  await tree.refresh();
+  const [project] = tree.getChildren(tree.getChildren()[0]);
+  const top = tree.getChildren(project);
+  const parent = top.find((s) => s.entry.file === h.TOOLS);
+  assert.ok(parent);
+  assert.strictEqual(parent.item.collapsibleState, 1);
+  assert.match(parent.item.description, /1 subagent$/);
+  const [kid] = tree.getChildren(parent);
+  assert.strictEqual(kid.item.label, 'Subagent Explore: Check error handling of callers');
+  assert.match(kid.entry.file, /subagents[\\/]agent-a7c41d2e9b\.jsonl$/);
+  for (const s of top.filter((x) => x !== parent)) assert.strictEqual(s.item.collapsibleState, 0);
+});
+
+test('a Claude Code subagent file opens as its own session, not indented, with the parent id for resume', async () => {
+  const f = path.join(path.dirname(h.TOOLS), '22222222-2222-4222-8222-222222222222', 'subagents', 'agent-a7c41d2e9b.jsonl');
+  const { meta, items } = await h.load(f);
+  assert.strictEqual(meta.subagent, true);
+  assert.strictEqual(meta.agentId, 'a7c41d2e9b');
+  assert.strictEqual(meta.turns, 1);
+  assert.strictEqual(meta.firstPrompt, 'Check that every caller of fetchForecast handles the new error.');
+  assert.ok(items.every((x) => !x.side), 'not drawn as a sidechain');
+  assert.strictEqual(meta.id, '22222222-2222-4222-8222-222222222222');
+  assert.deepStrictEqual(meta.models, ['claude-haiku-4-5']);
+  // the main session still indents its in-file sidechain turns
+  const main = await h.load(h.TOOLS);
+  assert.ok(main.items.some((x) => x.side));
+  assert.ok(!main.meta.subagent);
+});
+
+test('the session view of a Codex thread uses its name from session_index.jsonl', async () => {
+  const p = providers.get('agentSessionViewer.session');
+  const fp = fakePanel();
+  await p.resolveCustomEditor(p.openCustomDocument(Uri.file(h.CODEX)), fp.panel);
+  fp.send({ type: 'ready' });
+  await until(() => fp.posted.some((m) => m.type === 'done'));
+  assert.strictEqual(fp.posted.find((m) => m.type === 'done').meta.title, 'Flag rename: --city to --place');
+});
+
+test('Resume in terminal opens a terminal in the project folder and types only the resume command', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const terms = [];
+  const warnings = [];
+  const savedWarn = vscode.window.showWarningMessage;
+  vscode.window.createTerminal = (o) => { const t = { o, shown: false, sent: [], show() { this.shown = true; }, sendText(x, nl) { this.sent.push([x, nl]); } }; terms.push(t); return t; };
+  vscode.window.showWarningMessage = async (m) => { warnings.push(m); };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asv-term-'));
+  try {
+    // A copy of the Codex fixture whose cwd is a real folder.
+    const src = fs.readFileSync(h.CODEX, 'utf8').split('/tmp/demo').join(dir);
+    const f = path.join(dir, 'rollout-2026-11-06T09-12-00-0199aa00-1111-7222-8333-444455556666.jsonl');
+    fs.writeFileSync(f, src);
+    const r = await commands.get('agentSessionViewer.resumeInTerminal')(Uri.file(f));
+    assert.strictEqual(terms.length, 1);
+    assert.strictEqual(terms[0].o.cwd, dir);
+    assert.match(terms[0].o.name, /^Codex: Rename the --city flag/);
+    assert.deepStrictEqual(terms[0].sent, [['codex resume 0199aa00-1111-7222-8333-444455556666', true]]);
+    assert.ok(terms[0].shown);
+    assert.strictEqual(r.cmd, 'codex resume 0199aa00-1111-7222-8333-444455556666');
+    assert.strictEqual(warnings.length, 0);
+    // The Claude fixture's folder /tmp/demo does not exist: default folder plus a warning, never a failure.
+    await commands.get('agentSessionViewer.resumeInTerminal')(Uri.file(h.TOOLS));
+    assert.strictEqual(terms.length, 2);
+    assert.strictEqual(terms[1].o.cwd, undefined);
+    assert.deepStrictEqual(terms[1].sent, [['claude --resume 22222222-2222-4222-8222-222222222222', true]]);
+    assert.match(warnings[0], /does not exist any more/);
+    // From the webview button.
+    const p = providers.get('agentSessionViewer.session');
+    const fp = fakePanel();
+    await p.resolveCustomEditor(p.openCustomDocument(Uri.file(f)), fp.panel);
+    assert.match(fp.panel.webview.html, /id="btn-term"/);
+    fp.send({ type: 'ready' });
+    await until(() => fp.posted.some((m) => m.type === 'done'));
+    fp.send({ type: 'resumeTerminal' });
+    await until(() => terms.length === 3);
+    assert.deepStrictEqual(terms[2].sent, [['codex resume 0199aa00-1111-7222-8333-444455556666', true]]);
+  } finally {
+    vscode.window.showWarningMessage = savedWarn;
+    delete vscode.window.createTerminal;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('custom editor streams a session to the webview and ignores bad messages', async () => {
@@ -139,6 +241,17 @@ test('a search hit in a hidden session tab is shown after the webview reloads', 
   const n = fp.posted.length;
   p.focus(Uri.file(h.TOOLS), 5);
   assert.strictEqual(fp.posted.slice(n).find((m) => m.type === 'focus').line, 5);
+  // a Search Sessions query travels with the jump, so the session's find box shows it
+  const k = fp.posted.length;
+  p.focus(Uri.file(h.TOOLS), 7, 'backoff');
+  assert.deepStrictEqual(fp.posted.slice(k).find((m) => m.type === 'focus'), { type: 'focus', line: 7, query: 'backoff' });
+  fp.panel.visible = false;
+  p.focus(Uri.file(h.TOOLS), 9, '  ');
+  fp.panel.visible = true;
+  const j = fp.posted.length;
+  fp.send({ type: 'ready' });
+  await until(() => fp.posted.slice(j).some((m) => m.type === 'focus'));
+  assert.deepStrictEqual(fp.posted.slice(j).find((m) => m.type === 'focus'), { type: 'focus', line: 9 }, 'blank query is dropped');
 });
 
 test('the session-folder watchers react to new, changed and deleted session files', () => {

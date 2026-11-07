@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-11-07)
+
+- Resume in terminal. A new button in the session view, an icon on each session in the tree and a command open a VS Code terminal in the session's project folder and type `claude --resume <id>` or `codex resume <id>`. If the folder no longer exists, the terminal opens in the default folder and a note says so. Copy resume command is still there.
+- Subagents sit under the session that started them. Claude Code subagent runs, which Claude Code now saves as separate files in `<session>/subagents/`, show up for the first time, named by their type and task (for example "Subagent Explore: Check error handling of callers"). Codex subagent threads move under their parent thread and are named by their nickname and task, instead of showing as a bare `rollout-…` file name. The tree header counts sessions and subagents apart.
+- Codex thread names. Names from Codex's `session_index.jsonl`, including threads you renamed, are used as titles in the tree and the session view.
+- Find in this session. A find box in the session toolbar counts matches ("2 of 5") across the whole session, including collapsed tool inputs, outputs, diffs and thinking, and opens each match as you step through with Enter, Shift+Enter or the arrows. After Search Sessions, the session opens with your search words already in the box.
+- The Marketplace description and keywords now mention resume and subagents.
+
 ## 0.1.5 (2026-11-07)
 
 - The footer under the viewer has a "Rate" link next to Sponsor and More free viewers. It opens the review page of this extension on the Marketplace. Nothing pops up and nothing asks you for a rating. "Hide" still hides the whole line.

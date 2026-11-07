@@ -47,13 +47,15 @@ ${footer ? `<style nonce="${nonce}">${FOOTER_CSS}\n.zovo-support{padding:12px 20
 <body>
 <header id="head" class="head"><div class="title" id="title">${esc(o.title)}</div><div class="chips" id="chips"></div><div class="notices" id="notices"></div></header>
 <nav class="toolbar" id="toolbar">
-  <button id="btn-resume" type="button" title="Copy the shell command that resumes this session">Copy resume command</button>
+  <button id="btn-term" type="button" title="Open a terminal in the project folder and resume this session there">Resume in terminal</button>
+  <button id="btn-resume" type="button" class="secondary" title="Copy the shell command that resumes this session">Copy resume command</button>
   <button id="btn-export" type="button" title="Export this session to a Markdown file">Export Markdown</button>
   <button id="btn-expand" type="button" class="secondary">Expand all</button>
   <button id="btn-collapse" type="button" class="secondary">Collapse all</button>
   <label><input type="checkbox" id="opt-tools"> Hide tool calls</label>
   <label><input type="checkbox" id="opt-thinking"> Hide thinking</label>
   <button id="btn-raw" type="button" class="secondary link" title="Open the .jsonl file as read-only text">Open as text</button>
+  <span class="find" role="search"><input id="find" type="search" placeholder="Find in this session" aria-label="Find in this session" spellcheck="false"><button id="find-prev" type="button" class="secondary icon" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button><button id="find-next" type="button" class="secondary icon" title="Next match (Enter)" aria-label="Next match">↓</button><span id="find-count" class="find-count" aria-live="polite"></span></span>
   <span class="status" id="status">Loading…</span>
 </nav>
 <main id="list" class="list" aria-live="polite"></main>

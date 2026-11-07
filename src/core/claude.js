@@ -18,6 +18,7 @@ function createClaudeParser() {
   const usageById = new Map();
   let anonUsage = 0;
   let costSum = 0, costSeen = false;
+  let seenFirst = false;
 
   function userText(text, rec, line, side, items) {
     if (!text.trim()) return;
@@ -42,7 +43,12 @@ function createClaudeParser() {
     if (typeof rec.cwd === 'string' && !meta.cwd) meta.cwd = rec.cwd;
     if (typeof rec.gitBranch === 'string' && rec.gitBranch && rec.gitBranch !== 'HEAD') meta.branch = rec.gitBranch;
     if (typeof rec.version === 'string' && rec.version) meta.version = rec.version;
-    const side = rec.isSidechain === true;
+    // A subagent file (<session>/subagents/agent-*.jsonl) is all sidechain: show it as its own session, not indented.
+    if (!seenFirst && (t === 'user' || t === 'assistant')) {
+      seenFirst = true;
+      if (rec.isSidechain === true && typeof rec.agentId === 'string' && rec.agentId) { meta.subagent = true; meta.agentId = rec.agentId.slice(0, 80); }
+    }
+    const side = rec.isSidechain === true && !meta.subagent;
     if (side) meta.hasSidechain = true;
 
     if (t === 'summary') {

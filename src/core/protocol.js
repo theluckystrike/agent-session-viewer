@@ -9,6 +9,7 @@ function validateWebviewMessage(m) {
   switch (m.type) {
     case 'ready':
     case 'copyResume':
+    case 'resumeTerminal':
     case 'openRaw':
       return { type: m.type };
     case 'export':

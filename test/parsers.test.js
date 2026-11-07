@@ -113,3 +113,19 @@ test('summarizeFile reads only the head and marks partial reads', async () => {
   assert.strictEqual(full.firstPrompt, 'Add retry with backoff to fetchForecast and run the tests.');
   assert.strictEqual(await summarizeFile(h.OTHER), null);
 });
+
+test('codex: a 2026 subagent thread records its parent, nickname, path and task', async () => {
+  const path = require('path');
+  const f = path.join(h.FIX, 'codex', 'sessions', '2026', '11', '06', 'rollout-2026-11-06T09-12-20-0199aa00-2222-7222-8333-444455556666.jsonl');
+  const { meta, items } = await h.load(f);
+  assert.strictEqual(meta.subagent, true);
+  assert.strictEqual(meta.parentId, '0199aa00-1111-7222-8333-444455556666');
+  assert.strictEqual(meta.agent, 'Hume');
+  assert.strictEqual(meta.agentPath, '/root/check_docs');
+  assert.strictEqual(meta.firstPrompt, 'Check that docs/flags.md lists every flag in src/cli.js.');
+  assert.strictEqual(meta.turns, 0, 'the agent message is not counted as a user turn');
+  assert.deepStrictEqual(meta.skipped, {});
+  assert.ok(items.some((x) => x.k === 'note' && x.label === '/root → /root/check_docs'));
+  const main = await h.load(h.CODEX);
+  assert.strictEqual(main.meta.parentId, undefined);
+});

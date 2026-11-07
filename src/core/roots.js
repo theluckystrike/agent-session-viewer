@@ -32,18 +32,73 @@ async function statSafe(file) {
   try { return await fs.promises.stat(file); } catch { return null; }
 }
 
+const MAX_META_BYTES = 64 * 1024;
+
+/** Reads a small JSON file (a subagent's .meta.json). Returns null when missing, too big or not JSON. */
+async function readSmallJson(file) {
+  try {
+    const st = await fs.promises.stat(file);
+    if (!st.isFile() || st.size > MAX_META_BYTES) return null;
+    const v = JSON.parse(await fs.promises.readFile(file, 'utf8'));
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+  } catch { return null; }
+}
+
+// Claude Code 2026 writes each subagent run to <project>/<session-id>/subagents/agent-<id>.jsonl, with an
+// agent-<id>.meta.json beside it ({agentType, description, toolUseId, ...}).
+async function listClaudeSubagents(dir, sessionFile, projectDir, out) {
+  const sub = path.join(dir, path.basename(sessionFile, '.jsonl'), 'subagents');
+  for (const f of await readdirSafe(sub)) {
+    if (!f.isFile() || !/^agent-.*\.jsonl$/.test(f.name)) continue;
+    const file = path.join(sub, f.name);
+    const st = await statSafe(file);
+    if (!st || st.size === 0) continue;
+    const m = await readSmallJson(file.replace(/\.jsonl$/, '.meta.json'));
+    const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+    out.push({ file, source: 'claude', projectDir, mtimeMs: st.mtimeMs, size: st.size, parentFile: sessionFile,
+      agentType: m ? str(m.agentType, 80) : '', agentDescription: m ? str(m.description, 200) : '' });
+  }
+}
+
 async function listClaude(root, out, isCancelled) {
   for (const d of await readdirSafe(root)) {
     if (isCancelled()) return;
     if (!d.isDirectory()) continue;
     const dir = path.join(root, d.name);
-    for (const f of await readdirSafe(dir)) {
+    const names = await readdirSafe(dir);
+    const subdirs = new Set(names.filter((f) => f.isDirectory()).map((f) => f.name));
+    for (const f of names) {
       if (!f.isFile() || !f.name.endsWith('.jsonl') || f.name.startsWith('agent-')) continue;
       const file = path.join(dir, f.name);
       const st = await statSafe(file);
       if (st && st.size > 0) out.push({ file, source: 'claude', projectDir: d.name, mtimeMs: st.mtimeMs, size: st.size });
+      if (st && subdirs.has(f.name.slice(0, -6))) await listClaudeSubagents(dir, file, d.name, out);
     }
   }
+}
+
+/**
+ * Codex keeps thread names (including ones the user renamed) in <CODEX_HOME>/session_index.jsonl:
+ * one {id, thread_name, updated_at} per line, newest last. Returns Map id -> name. Read-only, streamed.
+ */
+async function readCodexTitles(codexRoots, maxBytes = 8 * 1024 * 1024) {
+  const { streamLines, parseLine } = require('./lines');
+  const titles = new Map();
+  const seen = new Set();
+  for (const r of codexRoots || []) {
+    const file = path.join(path.dirname(r), 'session_index.jsonl');
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const st = await statSafe(file);
+    if (!st || !st.isFile()) continue;
+    try {
+      await streamLines(file, (line) => {
+        const v = parseLine(line);
+        if (v && typeof v.id === 'string' && typeof v.thread_name === 'string' && v.thread_name.trim()) titles.set(v.id, v.thread_name.trim().slice(0, 200));
+      }, { maxBytes });
+    } catch { /* unreadable index: titles come from the sessions */ }
+  }
+  return titles;
 }
 
 async function listCodex(root, out, isCancelled, depth = 0) {
@@ -76,4 +131,4 @@ function projectLabelFromDir(name) {
   return typeof name === 'string' ? name.replace(/^-/, '/').replace(/-/g, '/') : '';
 }
 
-module.exports = { resolveRoots, listSessions, expandHome, projectLabelFromDir };
+module.exports = { resolveRoots, listSessions, expandHome, projectLabelFromDir, readCodexTitles, readSmallJson };

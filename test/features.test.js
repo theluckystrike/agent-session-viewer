@@ -12,8 +12,12 @@ const roots = { claude: [path.join(h.FIX, 'claude', 'projects')], codex: [path.j
 
 test('listSessions finds both tools, newest first', async () => {
   const list = await listSessions(roots);
-  assert.strictEqual(list.filter((e) => e.source === 'claude').length, 3);
-  assert.strictEqual(list.filter((e) => e.source === 'codex').length, 1);
+  assert.strictEqual(list.filter((e) => e.source === 'claude').length, 4, '3 sessions and 1 subagent file');
+  const sub = list.find((e) => e.parentFile);
+  assert.strictEqual(sub.parentFile, h.TOOLS);
+  assert.strictEqual(sub.agentType, 'Explore');
+  assert.strictEqual(sub.agentDescription, 'Check error handling of callers');
+  assert.strictEqual(list.filter((e) => e.source === 'codex').length, 2, 'main thread and one subagent thread');
   for (let i = 1; i < list.length; i++) assert.ok(list[i - 1].mtimeMs >= list[i].mtimeMs);
   assert.strictEqual((await listSessions(roots, { max: 2 })).length, 2);
   assert.deepStrictEqual(await listSessions({ claude: ['/no/such/dir'], codex: [] }), []);

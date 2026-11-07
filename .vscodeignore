@@ -7,3 +7,7 @@ icon.svg
 node_modules/**
 **/*.map
 .github/**
+images/session-dark.png
+images/codex-light.png
+images/search-hit-light.png
+images/subagent-dark.png
