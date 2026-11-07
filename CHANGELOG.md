@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 (2026-11-08)
+
+- The "More free viewers" list and the README now use the current Marketplace names and include the newest Zovo extensions: ZIP, GCode, EPUB, HAR, font and audio viewers.
+
 ## 0.2.2 (2026-11-07)
 
 - Resume on a Claude Code subagent now says what it does. Claude Code cannot resume a subagent on its own, and a subagent file carries the id of the session that started it, so the button reads "Resume parent session" and the terminal is named for the parent session.
